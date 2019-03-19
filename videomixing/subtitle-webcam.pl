@@ -7,9 +7,18 @@ use Tk;
 use Tk::Wm;
 use POSIX ":sys_wait_h";
 
+my $font = "-*-fixed-bold-*-*-*-18-*-*-*-*-*-iso10646-*";
+
+my $guest_area_h = 720;
+my $guest_area_w = 1280;
+my $guest_roi_to_crop = "960:714:160:0";
+$guest_roi_to_crop = "1280:720:0:0";
+
+my $cameraid = 1;
 my $attempt_fullscreen = 1;
 my %children = ();
 my $pane_background = '#000000';
+$pane_background = '#00aa00';
 
 sub videocommand {
   my $reparent_into_windowid = shift;
@@ -23,7 +32,7 @@ sub videocommand {
   # ffmpeg -i /dev/video0 -vf crop=100:100:12:34 -f avi pipe:1 | mplayer -
  # return "vlc /ha/home/bojar/public_html/elitr-kickoff-recordings/elitr-day1-hd-try2.mp4";
 
-  my $useinput = "/dev/video0";
+  my $useinput = "/dev/video$cameraid";
 
   if (defined $croprect) {
     # Crop in ffmpeg and play with mplayer which can be embedded:
@@ -103,11 +112,11 @@ sub make_pane {
 $mw->overrideredirect(1) if $attempt_fullscreen;
 $mw->focusmodel("active") if $attempt_fullscreen;
 
-my $height = $mw->screenheight();
-my $width = $mw->screenwidth();
-print STDERR "$height x $width\n";
+my $screenheight = $mw->screenheight();
+my $screenwidth = $mw->screenwidth();
+print STDERR "$screenheight x $screenwidth\n";
 #$display_window->overrideredirect(0);
-$mw->geometry($width."x".$height."+0+0");
+$mw->geometry($screenwidth."x".$screenheight."+0+0");
 
 
 $mw->resizable(0, 0);
@@ -119,26 +128,18 @@ $mw->resizable(0, 0);
 $mw->bind('all' => '<Key-Escape>' => sub {$mw->destroy();});
 $mw->MapWindow();
 
-my $videopane = make_pane("900x600+100+50");
-# video with cropping:
-# my $videopid = spawn(videocommand($videopane->id(), "200:100:50:10"));
-my $videopid = spawn(videocommand($videopane->id(), undef));
+my $bottombar_h = 100;
+my $video_h = $screenheight - $bottombar_h;
+my $video_w = $screenwidth;
+my $video_xoff = 0;
 
-my $xtermpane = make_pane($width."x150+0-0");
-my $xtermpid = spawn('xterm -into '.$xtermpane->id().' -e "while true; do date; sleep 5; done"');
+my $videopane = make_pane("${video_w}x${video_h}+$video_xoff+0");
+my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
 
-# sleep 30;
-# 
-# # find all my children
-# my @children;
-# for my $p ({new Proc::ProcessTable->table}){
-#   push @children, $p->pid if $p->ppid == $$;
-# }
-
+my $xtermpane = make_pane("${screenwidth}x${bottombar_h}+0-0");
+my $xtermpid = spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
 
 $mw->focusForce();
-
-system("ps --forest -o pid,tty,stat,time,cmd -g $$");
 
 MainLoop;
   # system("ps --forest -o pid,tty,stat,time,cmd -g $childpid");
