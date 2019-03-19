@@ -5,9 +5,12 @@ use strict;
 use Getopt::Long;
 use Tk;
 use Tk::Wm;
+use X11::Xlib ':all';
 use POSIX ":sys_wait_h";
 
 my $font = "-*-fixed-bold-*-*-*-18-*-*-*-*-*-iso10646-*";
+
+my $reparent_window = shift;
 
 my $guest_area_h = 720;
 my $guest_area_w = 1280;
@@ -134,10 +137,17 @@ my $video_w = $screenwidth;
 my $video_xoff = 0;
 
 my $videopane = make_pane("${video_w}x${video_h}+$video_xoff+0");
-my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
+#my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
 
 my $xtermpane = make_pane("${screenwidth}x${bottombar_h}+0-0");
-my $xtermpid = spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
+my $xtermpid;
+if (defined $reparent_window) {
+  # only use the given window ID to reparent it here
+  XReparentWindow(0, $reparent_window, $xtermpane->id(), 0,0);
+} else {
+  # run our xterm
+  $xtermpid= spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
+}
 
 $mw->focusForce();
 
