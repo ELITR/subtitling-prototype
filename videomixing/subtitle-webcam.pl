@@ -6,7 +6,6 @@ use Getopt::Long;
 use Tk;
 use Tk::Wm;
 use POSIX ":sys_wait_h";
-use Proc::ProcessTable; # to find all my children
 
 my $attempt_fullscreen = 1;
 my %children = ();
