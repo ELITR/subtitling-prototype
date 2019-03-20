@@ -11,6 +11,7 @@ use POSIX ":sys_wait_h";
 my $font = "-*-fixed-bold-*-*-*-18-*-*-*-*-*-iso10646-*";
 
 my $reparent_window = shift;
+my $display = X11::Xlib::XOpenDisplay($ENV{"DISPLAY"});
 
 my $guest_area_h = 720;
 my $guest_area_w = 1280;
@@ -18,7 +19,7 @@ my $guest_roi_to_crop = "960:714:160:0";
 $guest_roi_to_crop = "1280:720:0:0";
 
 my $cameraid = 1;
-my $attempt_fullscreen = 1;
+my $attempt_fullscreen = 0;
 my %children = ();
 my $pane_background = '#000000';
 $pane_background = '#00aa00';
@@ -143,7 +144,10 @@ my $xtermpane = make_pane("${screenwidth}x${bottombar_h}+0-0");
 my $xtermpid;
 if (defined $reparent_window) {
   # only use the given window ID to reparent it here
-  XReparentWindow(0, $reparent_window, $xtermpane->id(), 0,0);
+  my $reparent_window_int = hex($reparent_window);
+  my $pane_int = hex($mw->id())+2;
+  print STDERR "Trying to reparent window $reparent_window ($reparent_window_int) into ".$xtermpane->id()." ($pane_int, ".sprintf("%08x", $pane_int)."), display: $display\n";
+  XReparentWindow($display, $reparent_window_int, $pane_int, 0,0);
 } else {
   # run our xterm
   $xtermpid= spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
