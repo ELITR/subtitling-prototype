@@ -8,6 +8,10 @@ use Tk::Wm;
 use X11::Xlib ':all';
 use POSIX ":sys_wait_h";
 
+
+use X11::Protocol;
+my $X = X11::Protocol->new();
+
 my $font = "-*-fixed-bold-*-*-*-18-*-*-*-*-*-iso10646-*";
 
 my $reparent_window = shift;
@@ -18,8 +22,8 @@ my $guest_area_w = 1280;
 my $guest_roi_to_crop = "960:714:160:0";
 $guest_roi_to_crop = "1280:720:0:0";
 
-my $cameraid = 1;
-my $attempt_fullscreen = 0;
+my $cameraid = 0;
+my $attempt_fullscreen = 1;
 my %children = ();
 my $pane_background = '#000000';
 $pane_background = '#00aa00';
@@ -121,6 +125,7 @@ my $screenwidth = $mw->screenwidth();
 print STDERR "$screenheight x $screenwidth\n";
 #$display_window->overrideredirect(0);
 $mw->geometry($screenwidth."x".$screenheight."+0+0");
+$mw->geometry("100x".$screenheight."+0+0");
 
 
 $mw->resizable(0, 0);
@@ -142,16 +147,19 @@ my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
 
 my $xtermpane = make_pane("${screenwidth}x${bottombar_h}+0-0");
 my $xtermpid;
-if (defined $reparent_window) {
-  # only use the given window ID to reparent it here
-  my $reparent_window_int = hex($reparent_window);
-  my $pane_int = hex($mw->id())+2;
-  print STDERR "Trying to reparent window $reparent_window ($reparent_window_int) into ".$xtermpane->id()." ($pane_int, ".sprintf("%08x", $pane_int)."), display: $display\n";
-  XReparentWindow($display, $reparent_window_int, $pane_int, 0,0);
-} else {
-  # run our xterm
-  $xtermpid= spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
-}
+
+grab_it("lecture-translator.kit.edu", $xtermpane);
+
+# if (defined $reparent_window) {
+#   # only use the given window ID to reparent it here
+#   my $reparent_window_int = hex($reparent_window);
+#   my $pane_int = hex($mw->id())+2;
+#   print STDERR "Trying to reparent window $reparent_window ($reparent_window_int) into ".$xtermpane->id()." ($pane_int, ".sprintf("%08x", $pane_int)."), display: $display\n";
+#   XReparentWindow($display, $reparent_window_int, $pane_int, 0,0);
+# } else {
+#   # run our xterm
+#   $xtermpid= spawn("xterm -fn '$font' -fb '$font' -into ".$xtermpane->id().' -e "while true; do date; sleep 5; done"');
+# }
 
 $mw->focusForce();
 
@@ -161,5 +169,77 @@ MainLoop;
 system("killall mplayer");
 foreach my $pid (keys %children) {
   killchild($pid);
+}
+
+
+
+
+sub grab_it {
+    my $winname = shift;
+    my $pane = shift;
+    my $wid;
+    my $check = $pane->repeat(50, sub {
+        $wid = get_window_by_name($winname);
+            });
+     
+    while (!defined $wid) {
+        $pane->waitVariable(\$wid);
+    }
+    $check->cancel;
+     
+    die "Failed to find window $winname." if !$wid;
+
+    my $tgtid = $pane->id();
+    my $widx = "0x".sprintf("%08x", $wid);
+    print STDERR "Reparenting $wid ($widx) into $tgtid ($pane, ".$pane->id().")\n";
+    $X->ReparentWindow($widx, $tgtid, 0, 0);
+      # this does not work on Ubuntu 16.04
+    # system("xdotool windowmove $widx ");
+    my $mydesk = `xdotool get_desktop_for_window $tgtid`;
+    print STDERR "MY DESK: $mydesk\n";
+    system("xdotool set_desktop_for_window $widx $mydesk");
+    #system("xdotool windowactivate --sync $widx");
+    system("xdotool windowunmap --sync $widx");
+    system("xdotool windowsize --sync $widx ".$pane->width." ".$pane->height);
+    system("xdotool windowmove --sync $widx ".$pane->rootx." ".$pane->rooty);
+    system("xdotool set_window --overrideredirect 1 $widx");
+    # ensure same desktop
+    system("xdotool windowmap --sync $widx");
+    system("xdotool windowactivate --sync $widx");
+    # system("xdotool windowreparent $widx $tgtid");
+      # this is very dangerous, damages the google-chrome window
+    print STDERR "Reparented\n";
+}
+ 
+sub get_window_by_name {
+    _get_window_by_name($X->{'root'}, $_[0]);
+}
+ 
+sub _get_window_by_name {
+    my($root, $searchname) = @_;
+    my(undef, undef, @new_kids) = $X->QueryTree($root);
+    foreach my $k (@new_kids) {
+        my $atomnr;
+        foreach my $atom ($X->ListProperties($k)) {
+            if ($X->GetAtomName($atom) eq "WM_CLASS") {
+               $atomnr = $atom;
+               last;
+            }
+        }
+    if (defined $atomnr) {
+        my($classprop) = $X->GetProperty($k, $atomnr, "AnyPropertyType",0, 256, 0);
+        my($class, $name) = split(/\0/, $classprop);
+        print STDERR "Considering '$class' eq '$searchname'\n";
+        if ($class eq $searchname) {
+            print STDERR "  Found $k\n";
+            return $k;
+        }
+    }
+    my $ret = _get_window_by_name($k, $searchname);
+    if (defined $ret) {
+        return $ret;
+    }
+    }
+    undef;
 }
 
