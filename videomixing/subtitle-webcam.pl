@@ -138,7 +138,7 @@ my $video_w = $screenwidth;
 my $video_xoff = 0;
 
 my $videopane = make_pane("${video_w}x${video_h}+$video_xoff+0");
-#my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
+my $videopid = spawn(videocommand($videopane->id(), $guest_roi_to_crop));
 
 my $xtermpane = make_pane("${screenwidth}x${bottombar_h}+0-0");
 my $xtermpid;
