@@ -194,6 +194,13 @@ sub grab_it {
     print STDERR "Reparenting $wid ($widx) into $tgtid ($pane, ".$pane->id().")\n";
     $X->ReparentWindow($widx, $tgtid, 0, 0);
       # this does not work on Ubuntu 16.04
+      # Maybe the reason is described here:
+      #    https://www.geany.org/manual/gtk/gtk-faq/x636.html
+      # Which recommends this code:
+      #   gtk_widget_ref(widget);
+      #   gtk_container_remove(GTK_CONTAINER(old_parent), widget);
+      #   gtk_container_add(GTK_CONTAINER(new_parent), widget);
+      #   gtk_widget_unref(widget);
     # system("xdotool windowmove $widx ");
     my $mydesk = `xdotool get_desktop_for_window $tgtid`;
     print STDERR "MY DESK: $mydesk\n";
